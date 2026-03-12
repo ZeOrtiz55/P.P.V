@@ -14,6 +14,7 @@ import ModalBuscaOS from "./components/ModalBuscaOS";
 import ModalBuscaProduto from "./components/ModalBuscaProduto";
 import ModalProdutoManual from "./components/ModalProdutoManual";
 import CatalogoPecas from "./components/CatalogoPecas";
+import RastreioEncomendas from "./components/RastreioEncomendas";
 
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, tecnicos } = usePPV();
@@ -192,6 +193,12 @@ function PPVApp() {
           >
             <i className="fas fa-cogs" /> Catálogo
           </button>
+          <button
+            className={`ppv-topbar-nav-btn ${activeTab === "rastreioTab" ? "active" : ""}`}
+            onClick={() => setActiveTab("rastreioTab")}
+          >
+            <i className="fas fa-truck" /> Rastreio
+          </button>
         </div>
 
         {/* Action buttons */}
@@ -233,6 +240,12 @@ function PPVApp() {
         {activeTab === "catalogoTab" && (
           <div className="flex-1 overflow-hidden bg-red-950 p-5">
             <CatalogoPecas />
+          </div>
+        )}
+
+        {activeTab === "rastreioTab" && (
+          <div className="flex-1 overflow-hidden" style={bgPattern}>
+            <RastreioEncomendas />
           </div>
         )}
 
