@@ -5,7 +5,7 @@
 // =============================================
 
 import { supabaseFetch, getValorInsensivel, formatarDataBR } from "./supabase";
-import { TBL_PEDIDOS, TBL_ITENS, TBL_LOGS, TBL_OS, TBL_CLIENTES } from "./constants";
+import { TBL_PEDIDOS, TBL_ITENS, TBL_LOGS, TBL_OS, TBL_CLIENTES, TBL_PRODUTOS } from "./constants";
 import type { PPVDetalhes } from "./types";
 
 // =============================================
@@ -56,7 +56,30 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
         detalhes.devolucoes.push({ codigo, descricao: desc, quantidade: qtdVal, preco: precoVal });
       }
     });
-    detalhes.produtos = Object.values(itensMap);
+
+    // Buscar empresa dos produtos
+    const codigos = Object.keys(itensMap);
+    const empresaMap: Record<string, string> = {};
+    if (codigos.length > 0) {
+      try {
+        const filter = codigos.map((c) => `Codigo_Produto.eq.${encodeURIComponent(c)}`).join(",");
+        const resProd = await supabaseFetch<Record<string, unknown>[]>(
+          `${TBL_PRODUTOS}?or=(${filter})&select=Codigo_Produto,Empresa`
+        );
+        if (resProd) {
+          resProd.forEach((p) => {
+            const cod = String(p.Codigo_Produto || "").trim();
+            const emp = String(p.Empresa || "").trim();
+            if (cod && emp) empresaMap[cod] = emp;
+          });
+        }
+      } catch { /* empresa é informativo, não crítico */ }
+    }
+
+    detalhes.produtos = Object.values(itensMap).map((p) => ({
+      ...p,
+      empresa: empresaMap[p.codigo] || undefined,
+    }));
   }
 
   return detalhes;

@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res1 = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PRODUTOS}?or=(Codigo_Produto.ilike.*${query}*,Descricao_Produto.ilike.*${query}*)&select=Codigo_Produto,Descricao_Produto,Preco_Venda&limit=40`
+      `${TBL_PRODUTOS}?or=(Codigo_Produto.ilike.*${query}*,Descricao_Produto.ilike.*${query}*)&select=Codigo_Produto,Descricao_Produto,Preco_Venda,Empresa&limit=40`
     );
     res1.forEach((row) => {
       resultados.push({
@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
         descricao: String(getValorInsensivel(row, "Descricao_Produto", "descricao") || "").trim(),
         preco: parseFloat(String(getValorInsensivel(row, "Preco_Venda", "preco") || 0)),
         origem: "completos",
+        empresa: String(row.Empresa || "").trim() || undefined,
       });
     });
   } catch (e) {

@@ -71,7 +71,7 @@ export default function FormNovoLancamento({
       if (copy[codigo]) {
         copy[codigo] = { ...copy[codigo], quantidade: copy[codigo].quantidade + q, subtotal: (copy[codigo].quantidade + q) * copy[codigo].preco };
       } else {
-        copy[codigo] = { codigo, descricao: cached.descricao, preco: cached.preco, quantidade: q, subtotal: q * cached.preco };
+        copy[codigo] = { codigo, descricao: cached.descricao, preco: cached.preco, quantidade: q, subtotal: q * cached.preco, empresa: cached.empresa };
       }
       return copy;
     });
@@ -374,7 +374,14 @@ export default function FormNovoLancamento({
                   }}
                 >
                   <div className="ppv-form-cart-item-info">
-                    <div className="ppv-form-cart-item-code">{p.codigo}</div>
+                    <div className="ppv-form-cart-item-code">
+                      {p.codigo}
+                      {p.empresa && (
+                        <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, background: "#FEF3C7", color: "#92400E", padding: "1px 6px", borderRadius: 8 }}>
+                          {p.empresa.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
                     <div className="ppv-form-cart-item-desc">{p.descricao}</div>
                     <div className="ppv-form-cart-item-price">{formatarMoeda(p.preco)} / un.</div>
                   </div>

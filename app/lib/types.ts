@@ -19,6 +19,7 @@ export interface ProdutoSelecionado {
   preco: number;
   quantidade: number;
   subtotal: number;
+  empresa?: string;
 }
 
 export interface ProdutoBusca {
@@ -27,6 +28,7 @@ export interface ProdutoBusca {
   descricao: string;
   preco: number;
   origem: "completos" | "manuais";
+  empresa?: string;
 }
 
 export interface ClienteBusca {
@@ -49,6 +51,7 @@ export interface ProdutoDetalhe {
   descricao: string;
   quantidade: number;
   preco: number;
+  empresa?: string;
 }
 
 export interface Devolucao {

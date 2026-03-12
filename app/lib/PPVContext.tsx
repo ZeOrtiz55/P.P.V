@@ -21,8 +21,8 @@ interface PPVContextValue {
   kanbanItems: KanbanItem[];
   carregarKanban: () => Promise<void>;
   atualizarKanbanLocal: (id: string, changes: Partial<KanbanItem>) => void;
-  productCache: Record<string, { descricao: string; preco: number }>;
-  cacheProduct: (codigo: string, descricao: string, preco: number) => void;
+  productCache: Record<string, { descricao: string; preco: number; empresa?: string }>;
+  cacheProduct: (codigo: string, descricao: string, preco: number, empresa?: string) => void;
 
   // Toast
   toast: ToastState;
@@ -52,7 +52,7 @@ export function PPVProvider({ children }: { children: ReactNode }) {
   const [kanbanItems, setKanbanItems] = useState<KanbanItem[]>([]);
   const [globalLoading, setGlobalLoading] = useState(true);
   const [toast, setToast] = useState<ToastState>({ visible: false, type: "success", message: "" });
-  const productCacheRef = useRef<Record<string, { descricao: string; preco: number }>>({});
+  const productCacheRef = useRef<Record<string, { descricao: string; preco: number; empresa?: string }>>({});
 
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ visible: true, type, message });
@@ -62,8 +62,8 @@ export function PPVProvider({ children }: { children: ReactNode }) {
     setToast((t) => ({ ...t, visible: false }));
   }, []);
 
-  const cacheProduct = useCallback((codigo: string, descricao: string, preco: number) => {
-    productCacheRef.current[codigo] = { descricao, preco };
+  const cacheProduct = useCallback((codigo: string, descricao: string, preco: number, empresa?: string) => {
+    productCacheRef.current[codigo] = { descricao, preco, empresa };
   }, []);
 
   const carregarKanban = useCallback(async () => {

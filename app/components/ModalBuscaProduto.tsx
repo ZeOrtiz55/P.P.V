@@ -9,7 +9,7 @@ interface Props {
   open: boolean;
   mode: "main" | "modal" | "edit";
   onClose: () => void;
-  onSelect: (codigo: string, descricao: string, preco: number) => void;
+  onSelect: (codigo: string, descricao: string, preco: number, empresa?: string) => void;
   onEditManual?: (id: number, codigo: string, descricao: string, preco: number) => void;
 }
 
@@ -42,7 +42,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     try {
       const data = await api.buscarProdutos(searchTermo.trim());
       setResultados(data);
-      data.forEach((p) => cacheProduct(p.codigo, p.descricao, p.preco));
+      data.forEach((p) => cacheProduct(p.codigo, p.descricao, p.preco, p.empresa));
       if (data.length === 0) setMensagem("Nenhum produto encontrado.");
     } catch {
       setMensagem("Erro na busca.");
@@ -65,7 +65,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
         return;
       }
     } else {
-      onSelect(p.codigo, p.descricao, p.preco);
+      onSelect(p.codigo, p.descricao, p.preco, p.empresa);
     }
     onClose();
   }
@@ -122,12 +122,13 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                   <th className="border-b border-orange-200/60 px-4 py-3 text-left text-[11px] font-bold uppercase text-slate-400">CODIGO</th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-left text-[11px] font-bold uppercase text-slate-400">DESCRICAO</th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-right text-[11px] font-bold uppercase text-slate-400">PRECO</th>
+                  <th className="border-b border-orange-200/60 px-4 py-3 text-center text-[11px] font-bold uppercase text-slate-400">EMPRESA</th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-center text-[11px] font-bold uppercase text-slate-400">ORIGEM</th>
                 </tr>
               </thead>
               <tbody>
                 {buscando ? (
-                  <tr><td colSpan={4} className="p-5 text-center">
+                  <tr><td colSpan={5} className="p-5 text-center">
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-red-600" />
                     <span className="ml-2 text-sm text-slate-500">Buscando produtos...</span>
                   </td></tr>
@@ -144,6 +145,15 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                         R$ {p.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 text-center">
+                        {p.empresa ? (
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-700">
+                            {p.empresa.toUpperCase()}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
                         <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${p.origem === "manuais" ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600"}`}>
                           {p.origem === "manuais" ? "MANUAL" : "ESTOQUE"}
                         </span>
@@ -151,7 +161,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={4} className="p-8 text-center">
+                  <tr><td colSpan={5} className="p-8 text-center">
                     <i className="fas fa-box-open mb-2 text-2xl text-slate-200" />
                     <div className="text-sm text-slate-400">{mensagem}</div>
                   </td></tr>

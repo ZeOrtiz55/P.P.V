@@ -1,26 +1,42 @@
 // =============================================
 // INTEGRAÇÃO OMIE — PEDIDO DE VENDA (PPV)
+// Suporte a múltiplas contas Omie por empresa
 // =============================================
 
 import { supabaseFetch } from "./supabase";
-import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS } from "./constants";
+import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS } from "./constants";
 import { buscarPPVPorId, registrarLog } from "./queries";
 
-// --- Credenciais ---
-const OMIE_APP_KEY = process.env.OMIE_APP_KEY || "";
-const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
+// --- Contas Omie ---
+interface OmieAccount {
+  name: string;
+  key: string;
+  secret: string;
+}
+
+const OMIE_ACCOUNTS: OmieAccount[] = [
+  { name: "Principal", key: "2729522270475", secret: "113d785bb86c48d064889d4d73348131" },
+  { name: "Secundario", key: "2730028269969", secret: "dc270bf5348b40d3ed1398ef70beb628" },
+];
+
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 
 // --- Constantes Omie ---
 const OMIE_COD_CATEG_VENDA = "1.01.03";
 const OMIE_COD_CC = 1969919780; // Banco do Brasil
 
-// --- Client genérico Omie ---
-async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>): Promise<T> {
+// --- Client genérico Omie (aceita credenciais) ---
+async function omieCall<T>(
+  endpoint: string,
+  call: string,
+  param: Record<string, unknown>,
+  appKey: string,
+  appSecret: string
+): Promise<T> {
   const payload = {
     call,
-    app_key: OMIE_APP_KEY,
-    app_secret: OMIE_APP_SECRET,
+    app_key: appKey,
+    app_secret: appSecret,
     param: [param],
   };
 
@@ -39,7 +55,7 @@ async function omieCall<T>(endpoint: string, call: string, param: Record<string,
   if (response.status === 429) {
     console.warn("[Omie] Rate limit — aguardando 60s...");
     await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param);
+    return omieCall(endpoint, call, param, appKey, appSecret);
   }
 
   return data as T;
@@ -58,21 +74,29 @@ function formatarDataOmie(): string {
   return `${dia}/${mes}/${ano}`;
 }
 
-// --- Lookup de cliente pelo CNPJ ---
+function getAccount(empresa: string): OmieAccount {
+  const acc = OMIE_ACCOUNTS.find(
+    (a) => a.name.toLowerCase() === (empresa || "").toLowerCase()
+  );
+  return acc || OMIE_ACCOUNTS[0]; // fallback para Principal
+}
+
+// --- Lookup de cliente pelo CNPJ (por conta) ---
 const cacheClientes = new Map<string, number>();
 
-async function buscarNcodCli(cnpjOriginal: string): Promise<number> {
-  const cnpjNorm = normalizarCnpj(cnpjOriginal);
-  if (cacheClientes.has(cnpjNorm)) return cacheClientes.get(cnpjNorm)!;
+async function buscarNcodCli(cnpjOriginal: string, acc: OmieAccount): Promise<number> {
+  const cacheKey = `${acc.name}:${normalizarCnpj(cnpjOriginal)}`;
+  if (cacheClientes.has(cacheKey)) return cacheClientes.get(cacheKey)!;
 
   // Tenta buscar na tabela Clientes do Supabase (campo id_omie)
+  const cnpjNorm = normalizarCnpj(cnpjOriginal);
   try {
     const res = await supabaseFetch<Record<string, unknown>[]>(
       `${TBL_CLIENTES}?cnpj_cpf=ilike.*${cnpjNorm.substring(0, 8)}*&select=id_omie,cnpj_cpf&limit=1`
     );
     if (res && res.length > 0 && res[0].id_omie) {
       const idOmie = Number(res[0].id_omie);
-      cacheClientes.set(cnpjNorm, idOmie);
+      cacheClientes.set(cacheKey, idOmie);
       return idOmie;
     }
   } catch { /* fallback para API */ }
@@ -81,25 +105,28 @@ async function buscarNcodCli(cnpjOriginal: string): Promise<number> {
   const result = await omieCall<{ clientes_cadastro?: Array<{ codigo_cliente_omie: number }> }>(
     "/geral/clientes/",
     "ListarClientes",
-    { pagina: 1, registros_por_pagina: 1, clientesFiltro: { cnpj_cpf: cnpjOriginal } }
+    { pagina: 1, registros_por_pagina: 1, clientesFiltro: { cnpj_cpf: cnpjOriginal } },
+    acc.key,
+    acc.secret
   );
 
   const nCodCli = result?.clientes_cadastro?.[0]?.codigo_cliente_omie;
   if (!nCodCli) {
-    throw new Error(`Cliente não encontrado no Omie para CNPJ: ${cnpjOriginal}`);
+    throw new Error(`Cliente não encontrado no Omie (${acc.name}) para CNPJ: ${cnpjOriginal}`);
   }
 
-  cacheClientes.set(cnpjNorm, nCodCli);
+  cacheClientes.set(cacheKey, nCodCli);
   return nCodCli;
 }
 
-// --- Lookup de vendedor (técnico) ---
-let listaVendedores: Array<{ codigo: number; nome: string }> | null = null;
+// --- Lookup de vendedor (técnico, por conta) ---
+const cacheVendedoresPorConta = new Map<string, Array<{ codigo: number; nome: string }>>();
 const cacheVendedores = new Map<string, number>();
 
-async function carregarVendedores(): Promise<Array<{ codigo: number; nome: string }>> {
-  if (listaVendedores) return listaVendedores;
-  listaVendedores = [];
+async function carregarVendedores(acc: OmieAccount): Promise<Array<{ codigo: number; nome: string }>> {
+  if (cacheVendedoresPorConta.has(acc.name)) return cacheVendedoresPorConta.get(acc.name)!;
+
+  const lista: Array<{ codigo: number; nome: string }> = [];
   let pagina = 1;
   let totalPaginas = 1;
   while (pagina <= totalPaginas) {
@@ -109,66 +136,107 @@ async function carregarVendedores(): Promise<Array<{ codigo: number; nome: strin
     }>("/geral/vendedores/", "ListarVendedores", {
       pagina,
       registros_por_pagina: 50,
-    });
+    }, acc.key, acc.secret);
     if (pagina === 1 && result.total_de_paginas) totalPaginas = result.total_de_paginas;
     for (const v of result.cadastro || []) {
-      if (v.inativo !== "S") listaVendedores.push({ codigo: v.codigo, nome: v.nome });
+      if (v.inativo !== "S") lista.push({ codigo: v.codigo, nome: v.nome });
     }
     pagina++;
     if (pagina > 1) await new Promise((r) => setTimeout(r, 400));
   }
-  return listaVendedores;
+
+  cacheVendedoresPorConta.set(acc.name, lista);
+  return lista;
 }
 
-async function buscarNcodVend(tecnico: string): Promise<number> {
+async function buscarNcodVend(tecnico: string, acc: OmieAccount): Promise<number> {
   const t = (tecnico || "").trim();
   if (!t) return 0;
-  if (cacheVendedores.has(t)) return cacheVendedores.get(t)!;
+  const cacheKey = `${acc.name}:${t}`;
+  if (cacheVendedores.has(cacheKey)) return cacheVendedores.get(cacheKey)!;
 
-  const vendedores = await carregarVendedores();
+  const vendedores = await carregarVendedores(acc);
   const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const nt = norm(t);
 
   for (const v of vendedores) {
     if (norm(v.nome).includes(nt)) {
-      cacheVendedores.set(t, v.codigo);
+      cacheVendedores.set(cacheKey, v.codigo);
       return v.codigo;
     }
   }
 
-  console.warn(`[Omie] Vendedor não encontrado para: ${t}`);
+  console.warn(`[Omie ${acc.name}] Vendedor não encontrado para: ${t}`);
   return 0;
 }
 
-// --- Lookup de produto no Omie ---
+// --- Lookup de produto no Omie (por conta) ---
 const cacheProdutos = new Map<string, number>();
 
-async function buscarCodigoProdutoOmie(codigoInterno: string): Promise<number> {
-  if (cacheProdutos.has(codigoInterno)) return cacheProdutos.get(codigoInterno)!;
+async function buscarCodigoProdutoOmie(codigoInterno: string, acc: OmieAccount): Promise<number> {
+  const cacheKey = `${acc.name}:${codigoInterno}`;
+  if (cacheProdutos.has(cacheKey)) return cacheProdutos.get(cacheKey)!;
 
-  const result = await omieCall<{ codigo_produto?: number }>(
-    "/produtos/produto/",
-    "ConsultarProduto",
-    { codigo: codigoInterno }
-  );
+  // Tenta por código de integração
+  try {
+    const r1 = await omieCall<{ codigo_produto?: number }>(
+      "/geral/produtos/",
+      "ConsultarProduto",
+      { codigo_produto_integracao: codigoInterno },
+      acc.key,
+      acc.secret
+    );
+    if (r1?.codigo_produto) {
+      cacheProdutos.set(cacheKey, r1.codigo_produto);
+      return r1.codigo_produto;
+    }
+  } catch { /* tenta próximo método */ }
 
-  const codProd = result?.codigo_produto;
-  if (!codProd) {
-    throw new Error(`Produto "${codigoInterno}" não encontrado no Omie`);
-  }
+  // Tenta pelo campo "codigo" (código do produto no Omie)
+  try {
+    const r2 = await omieCall<{ codigo_produto?: number }>(
+      "/geral/produtos/",
+      "ConsultarProduto",
+      { codigo: codigoInterno },
+      acc.key,
+      acc.secret
+    );
+    if (r2?.codigo_produto) {
+      cacheProdutos.set(cacheKey, r2.codigo_produto);
+      return r2.codigo_produto;
+    }
+  } catch { /* tenta próximo método */ }
 
-  cacheProdutos.set(codigoInterno, codProd);
-  return codProd;
+  throw new Error(`Produto "${codigoInterno}" não encontrado no Omie (${acc.name})`);
+}
+
+// --- Buscar empresa dos produtos via Supabase ---
+async function buscarEmpresasProdutos(codigos: string[]): Promise<Record<string, string>> {
+  const empresaMap: Record<string, string> = {};
+  if (codigos.length === 0) return empresaMap;
+
+  try {
+    const filter = codigos.map((c) => `Codigo_Produto.eq.${encodeURIComponent(c)}`).join(",");
+    const res = await supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_PRODUTOS}?or=(${filter})&select=Codigo_Produto,Empresa`
+    );
+    if (res) {
+      res.forEach((p) => {
+        const cod = String(p.Codigo_Produto || "").trim();
+        const emp = String(p.Empresa || "").trim();
+        if (cod && emp) empresaMap[cod] = emp;
+      });
+    }
+  } catch { /* não crítico */ }
+
+  return empresaMap;
 }
 
 // =============================================
 // FUNÇÃO PRINCIPAL: Enviar PPV para Omie
+// Agrupa produtos por empresa e cria um pedido por empresa
 // =============================================
 export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boolean; numeroPedido?: string; erro?: string }> {
-  if (!OMIE_APP_KEY || !OMIE_APP_SECRET) {
-    return { sucesso: false, erro: "Credenciais Omie não configuradas" };
-  }
-
   // 1. Busca detalhes do PPV
   const detalhes = await buscarPPVPorId(idPPV);
   if (!detalhes) {
@@ -200,7 +268,6 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
   } catch { /* continua */ }
 
   if (!cnpjCliente) {
-    // Tenta busca parcial
     try {
       const query = encodeURIComponent(detalhes.cliente.replace(/ /g, "%"));
       const res = await supabaseFetch<Record<string, unknown>[]>(
@@ -217,9 +284,9 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
   }
 
   // 4. Agrega produtos (saídas - devoluções)
-  const resumo: Record<string, { descricao: string; qtde: number; preco: number }> = {};
+  const resumo: Record<string, { descricao: string; qtde: number; preco: number; empresa?: string }> = {};
   for (const p of detalhes.produtos) {
-    if (!resumo[p.codigo]) resumo[p.codigo] = { descricao: p.descricao, qtde: 0, preco: p.preco };
+    if (!resumo[p.codigo]) resumo[p.codigo] = { descricao: p.descricao, qtde: 0, preco: p.preco, empresa: p.empresa };
     resumo[p.codigo].qtde += p.quantidade;
   }
   for (const d of detalhes.devolucoes) {
@@ -231,20 +298,54 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
     return { sucesso: false, erro: "Todos os produtos foram devolvidos, nada para faturar" };
   }
 
-  try {
-    // 5. Lookups no Omie
-    const nCodCli = await buscarNcodCli(cnpjCliente);
-    const nCodVend = await buscarNcodVend(detalhes.tecnico);
+  // 5. Buscar empresa dos produtos que não têm empresa definida
+  const codigosSemEmpresa = produtosFinais.filter(([, p]) => !p.empresa).map(([cod]) => cod);
+  if (codigosSemEmpresa.length > 0) {
+    const empresas = await buscarEmpresasProdutos(codigosSemEmpresa);
+    for (const [cod, prod] of produtosFinais) {
+      if (!prod.empresa && empresas[cod]) {
+        prod.empresa = empresas[cod];
+      }
+    }
+  }
 
-    // 6. Monta itens do pedido
+  // 6. Agrupar produtos por empresa
+  const porEmpresa: Record<string, Array<[string, { descricao: string; qtde: number; preco: number }]>> = {};
+  for (const [cod, prod] of produtosFinais) {
+    const emp = prod.empresa || "Principal"; // fallback
+    if (!porEmpresa[emp]) porEmpresa[emp] = [];
+    porEmpresa[emp].push([cod, prod]);
+  }
+
+  const empresas = Object.keys(porEmpresa);
+
+  // Verificar se há produtos de múltiplas empresas
+  if (empresas.length > 1) {
+    const detalhesEmpresas = empresas.map((e) => `${e}: ${porEmpresa[e].length} produto(s)`).join(", ");
+    return {
+      sucesso: false,
+      erro: `PPV contém produtos de empresas diferentes (${detalhesEmpresas}). Separe os produtos em PPVs distintos por empresa antes de enviar para o Omie.`,
+    };
+  }
+
+  // 7. Criar pedido na conta correta
+  const empresaNome = empresas[0];
+  const acc = getAccount(empresaNome);
+  const produtos = porEmpresa[empresaNome];
+
+  try {
+    const nCodCli = await buscarNcodCli(cnpjCliente, acc);
+    const nCodVend = await buscarNcodVend(detalhes.tecnico, acc);
+
+    // Monta itens do pedido
     const det: Array<{
       ide: { codigo_item_integracao: string };
       produto: { codigo_produto: number; quantidade: number; valor_unitario: number };
     }> = [];
 
-    for (let i = 0; i < produtosFinais.length; i++) {
-      const [cod, prod] = produtosFinais[i];
-      const codigoProdutoOmie = await buscarCodigoProdutoOmie(cod);
+    for (let i = 0; i < produtos.length; i++) {
+      const [cod, prod] = produtos[i];
+      const codigoProdutoOmie = await buscarCodigoProdutoOmie(cod, acc);
       det.push({
         ide: { codigo_item_integracao: `${idPPV}-${i + 1}` },
         produto: {
@@ -255,13 +356,13 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
       });
     }
 
-    // 7. Cria Pedido de Venda
+    // Cria Pedido de Venda
     const payload = {
       cabecalho: {
         codigo_pedido_integracao: `PV-${idPPV}`,
         codigo_cliente: nCodCli,
         data_previsao: formatarDataOmie(),
-        etapa: "10", // Aprovado
+        etapa: "10",
         quantidade_itens: det.length,
       },
       informacoes_adicionais: {
@@ -276,26 +377,27 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
     const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
       "/produtos/pedido/",
       "IncluirPedido",
-      payload as unknown as Record<string, unknown>
+      payload as unknown as Record<string, unknown>,
+      acc.key,
+      acc.secret
     );
 
     const numPedido = resposta.numero_pedido || String(resposta.codigo_pedido || "");
-    console.log(`[Omie PPV] ✓ ${idPPV} → Pedido de Venda nº ${numPedido}`);
+    console.log(`[Omie PPV] ${idPPV} → Pedido nº ${numPedido} (${acc.name})`);
 
-    // 8. Atualiza PPV: salva pedido_omie + muda status para Fechado
+    // Atualiza PPV: salva pedido_omie + muda status para Fechado
     await supabaseFetch(
       `${TBL_PEDIDOS}?id_pedido=eq.${idPPV}`,
       "PATCH",
       { pedido_omie: numPedido, status: "Fechado" }
     );
 
-    // 9. Registra log
-    await registrarLog(idPPV, `Pedido de Venda Omie nº ${numPedido} criado. PPV fechado.`);
+    await registrarLog(idPPV, `Pedido de Venda Omie nº ${numPedido} criado (${acc.name}). PPV fechado.`);
 
     return { sucesso: true, numeroPedido: numPedido };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Omie PPV] ✗ ${idPPV}: ${msg}`);
+    console.error(`[Omie PPV] ${idPPV}: ${msg}`);
     return { sucesso: false, erro: msg };
   }
 }
