@@ -152,33 +152,39 @@ export default function ModalBuscaCliente({ open, onClose, onSelect }: Props) {
               </div>
             ) : (
               <div style={{ borderRadius: 10, border: "1px solid var(--ppv-border-light)", overflow: "hidden" }}>
+                {/* Header fixo */}
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: "var(--ppv-primary-light)" }}>
                       <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)" }}>Cliente</th>
-                      <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)" }}>CNPJ / CPF</th>
-                      <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)" }}>Cidade</th>
+                      <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)", width: 160 }}>CNPJ / CPF</th>
+                      <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)", width: 150 }}>Cidade</th>
                     </tr>
                   </thead>
-                  <tbody style={{ maxHeight: 400, overflowY: "auto" }}>
-                    {filtrados.map((c, idx) => (
-                      <tr
-                        key={idx}
-                        onClick={() => { onSelect(c.nome); onClose(); }}
-                        style={{ cursor: "pointer", borderBottom: "1px solid var(--ppv-primary-light)", transition: "background 0.12s" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ppv-primary-light)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                      >
-                        <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 600, color: "var(--ppv-text)" }}>
-                          <i className="fas fa-user" style={{ marginRight: 8, fontSize: 11, color: "var(--ppv-accent)" }} />
-                          {highlightMatch(c.nome)}
-                        </td>
-                        <td style={{ padding: "12px 16px", fontSize: 13, fontFamily: "monospace", color: "var(--ppv-text-light)" }}>{highlightMatch(c.documento)}</td>
-                        <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--ppv-text-light)" }}>{c.cidade || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
                 </table>
+                {/* Body scrollável */}
+                <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <tbody>
+                      {filtrados.map((c, idx) => (
+                        <tr
+                          key={idx}
+                          onClick={() => { onSelect(c.nome); onClose(); }}
+                          style={{ cursor: "pointer", borderBottom: "1px solid var(--ppv-primary-light)", transition: "background 0.12s" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ppv-primary-light)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                        >
+                          <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 600, color: "var(--ppv-text)" }}>
+                            <i className="fas fa-user" style={{ marginRight: 8, fontSize: 11, color: "var(--ppv-accent)" }} />
+                            {highlightMatch(c.nome)}
+                          </td>
+                          <td style={{ padding: "12px 16px", fontSize: 13, fontFamily: "monospace", color: "var(--ppv-text-light)", width: 160 }}>{highlightMatch(c.documento)}</td>
+                          <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--ppv-text-light)", width: 150 }}>{c.cidade || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
