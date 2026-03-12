@@ -145,12 +145,19 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                         R$ {p.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {p.empresa ? (
-                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-700">
-                            {p.empresa.toUpperCase()}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-300">—</span>
+                        {p.empresa ? (() => {
+                          const isPrimario = p.empresa.toLowerCase().includes("primari");
+                          const label = isPrimario ? "CASTRO" : "NOVA";
+                          return (
+                            <span className="rounded-full px-3 py-1.5 text-[13px] font-bold" style={{
+                              background: isPrimario ? "#DBEAFE" : "#FEE2E2",
+                              color: isPrimario ? "#2563EB" : "#DC2626",
+                            }}>
+                              {label}
+                            </span>
+                          );
+                        })() : (
+                          <span className="text-[12px] text-slate-400">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">

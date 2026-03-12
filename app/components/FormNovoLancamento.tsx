@@ -376,11 +376,19 @@ export default function FormNovoLancamento({
                   <div className="ppv-form-cart-item-info">
                     <div className="ppv-form-cart-item-code">
                       {p.codigo}
-                      {p.empresa && (
-                        <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, background: "#FEF3C7", color: "#92400E", padding: "1px 6px", borderRadius: 8 }}>
-                          {p.empresa.toUpperCase()}
-                        </span>
-                      )}
+                      {p.empresa && (() => {
+                        const isPrimario = p.empresa.toLowerCase().includes("primari");
+                        const label = isPrimario ? "CASTRO" : "NOVA";
+                        return (
+                          <span style={{
+                            marginLeft: 6, fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 8,
+                            background: isPrimario ? "#DBEAFE" : "#FEE2E2",
+                            color: isPrimario ? "#2563EB" : "#DC2626",
+                          }}>
+                            {label}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="ppv-form-cart-item-desc">{p.descricao}</div>
                     <div className="ppv-form-cart-item-price">{formatarMoeda(p.preco)} / un.</div>

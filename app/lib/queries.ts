@@ -263,9 +263,9 @@ function mapearStatusOS(statusOS: string): string | null {
 
 export async function sincronizarStatusComOS(): Promise<void> {
   try {
-    // Busca todos os PPVs que têm OS vinculada e NÃO estão em estado terminal
+    // Busca todos os PPVs que têm OS vinculada, NÃO estão em estado terminal e NÃO têm override manual
     const pedidos = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PEDIDOS}?Id_Os=neq.&status=not.in.(Fechado,Cancelado)&select=id_pedido,Id_Os,status`
+      `${TBL_PEDIDOS}?Id_Os=neq.&status=not.in.(Fechado,Cancelado)&status_manual_override=not.is.true&select=id_pedido,Id_Os,status`
     );
 
     if (!pedidos || pedidos.length === 0) return;

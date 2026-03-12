@@ -109,18 +109,20 @@ export async function PATCH(req: NextRequest) {
 
     const payload: Record<string, unknown> = {
       status: dados.status,
-      observacao: dados.observacao,
-      tecnico: dados.tecnico,
-      motivo_cancelamento: dados.motivoCancelamento,
-      pedido_omie: dados.pedidoOmie,
-      Id_Os: dados.osId,
-      Tipo_Pedido: dados.tipoPedido,
-      Motivo_Saida_Pedido: dados.motivoSaida,
+      status_manual_override: true, // Protege contra auto-sync sobrescrever
     };
+    // Só inclui campos que foram realmente enviados (evita sobrescrever com "")
+    if (dados.observacao !== undefined) payload.observacao = dados.observacao;
+    if (dados.tecnico) payload.tecnico = dados.tecnico;
     if (dados.cliente) payload.cliente = dados.cliente;
+    if (dados.motivoCancelamento) payload.motivo_cancelamento = dados.motivoCancelamento;
+    if (dados.pedidoOmie) payload.pedido_omie = dados.pedidoOmie;
+    if (dados.osId !== undefined) payload.Id_Os = dados.osId;
+    if (dados.tipoPedido) payload.Tipo_Pedido = dados.tipoPedido;
+    if (dados.motivoSaida) payload.Motivo_Saida_Pedido = dados.motivoSaida;
 
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${dados.id}`, "PATCH", payload);
-    await vincularPPVnaOS(dados.osId, dados.id);
+    if (dados.osId) await vincularPPVnaOS(dados.osId, dados.id);
     await registrarLog(dados.id, `Status: ${dados.status}`);
 
     return NextResponse.json({ success: true });

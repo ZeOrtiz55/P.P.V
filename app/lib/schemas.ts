@@ -32,13 +32,13 @@ export const editarPedidoSchema = z.object({
   id: z.string().min(1, "ID obrigatório"),
   status: z.string().min(1),
   observacao: z.string().optional().default(""),
-  tecnico: z.string().min(1),
+  tecnico: z.string().optional().default(""),
   cliente: z.string().optional().default(""),
   motivoCancelamento: z.string().optional().default(""),
   pedidoOmie: z.string().optional().default(""),
   osId: z.string().optional().default(""),
-  tipoPedido: z.string().min(1),
-  motivoSaida: z.string().min(1),
+  tipoPedido: z.string().optional().default(""),
+  motivoSaida: z.string().optional().default(""),
 });
 
 export const movimentacaoSchema = z.object({

@@ -380,11 +380,19 @@ export default function PPVDrawer({
                                 <div style={{ minWidth: 0, flex: 1 }}>
                                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                     <span style={{ fontWeight: 700 }}>{p.codigo}</span>
-                                    {p.empresa && (
-                                      <span style={{ fontSize: 9, fontWeight: 700, background: "#FEF3C7", color: "#92400E", padding: "1px 6px", borderRadius: 8 }}>
-                                        {p.empresa.toUpperCase()}
-                                      </span>
-                                    )}
+                                    {p.empresa && (() => {
+                                      const isPrimario = p.empresa.toLowerCase().includes("primari");
+                                      const label = isPrimario ? "CASTRO" : "NOVA";
+                                      return (
+                                        <span style={{
+                                          fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 8,
+                                          background: isPrimario ? "#DBEAFE" : "#FEE2E2",
+                                          color: isPrimario ? "#2563EB" : "#DC2626",
+                                        }}>
+                                          {label}
+                                        </span>
+                                      );
+                                    })()}
                                     <span style={{ fontSize: 12, color: "var(--ppv-text-light)" }}>{p.descricao}</span>
                                   </div>
                                   <div style={{ fontSize: 12, color: "var(--ppv-text-light)", marginTop: 4, display: "flex", alignItems: "center", gap: 12 }}>
